@@ -340,6 +340,8 @@ function App() {
                 <div className="messages-container">
                   {loading ? (
                     <div className="loading">Loading messages...</div>
+                  ) : messages.length === 0 ? (
+                    <div className="no-messages">No messages yet</div>
                   ) : (
                     messages.map(msg => (
                       <div key={msg.id} className="message">
