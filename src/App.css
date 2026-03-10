@@ -238,11 +238,44 @@
   font-size: 1.5rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .username {
   font-weight: bold;
   background-color: rgba(255, 255, 255, 0.2);
   padding: 0.25rem 0.75rem;
   border-radius: 15px;
+}
+
+.profile-btn, .logout-btn {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.profile-btn {
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.profile-btn:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.logout-btn {
+  background-color: #dc3545;
+  color: white;
+}
+
+.logout-btn:hover {
+  background-color: #c82333;
 }
 
 .chat-content {

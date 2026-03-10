@@ -22,13 +22,19 @@ function App() {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
   const [editContent, setEditContent] = useState('');
+  const [user, setUser] = useState(null);
 
   const login = async () => {
     try {
       const response = await api.post('/api/chat/login/', { username, password });
-      setToken(response.data.token);
+      const receivedToken = response.data.token;
+      const userData = response.data.user;
+      localStorage.setItem('token', receivedToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setToken(receivedToken);
+      setUser(userData);
       setIsAuthenticated(true);
-      fetchChatrooms();
+      fetchChatrooms(receivedToken);
     } catch (error) {
       console.error('Login error:', error);
       alert('Login failed. Please check your credentials.');
@@ -54,14 +60,22 @@ function App() {
       setPasswordConfirm('');
     } catch (error) {
       console.error('Register error:', error);
-      alert('Registration failed. Please try again.');
+      const errorData = error.response?.data;
+      if (errorData && typeof errorData === 'object') {
+        const messages = Object.entries(errorData)
+          .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+          .join('\n');
+        alert('Registration failed:\n' + messages);
+      } else {
+        alert('Registration failed. Please try again.');
+      }
     }
   };
 
-  const fetchChatrooms = async () => {
+  const fetchChatrooms = async (authToken = token) => {
     try {
       const response = await api.get('/api/chat/rooms/', {
-        headers: { Authorization: `Token ${token}` }
+        headers: { Authorization: `Token ${authToken}` }
       });
       setChatrooms(response.data);
     } catch (error) {
@@ -83,7 +97,7 @@ function App() {
       setNewRoomDescription('');
       setNewRoomIsPrivate(false);
       setShowCreateRoom(false);
-      fetchChatrooms();
+      fetchChatrooms(token);
     } catch (error) {
       console.error('Error creating chatroom:', error);
       alert('Failed to create chatroom.');
@@ -98,13 +112,21 @@ function App() {
       setSelectedRoom(roomId);
       fetchMessages(roomId);
     } catch (error) {
-      console.error('Error joining room:', error);
+      const errorMsg = error.response?.data?.error || '';
+      if (errorMsg.includes('already a participant')) {
+        setSelectedRoom(roomId);
+        fetchMessages(roomId);
+      } else {
+        console.error('Error joining room:', error);
+      }
     }
   };
 
-  const fetchMessages = async (roomId) => {
+  const fetchMessages = async (roomId, isBackgroundRefresh = false) => {
     try {
-      setLoading(true);
+      if (!isBackgroundRefresh) {
+        setLoading(true);
+      }
       const response = await api.get(`/api/chat/rooms/${roomId}/messages/`, {
         headers: { Authorization: `Token ${token}` }
       });
@@ -112,7 +134,9 @@ function App() {
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
-      setLoading(false);
+      if (!isBackgroundRefresh) {
+        setLoading(false);
+      }
     }
   };
 
@@ -126,7 +150,7 @@ function App() {
         headers: { Authorization: `Token ${token}` }
       });
       setNewMessage('');
-      fetchMessages(selectedRoom);
+      fetchMessages(selectedRoom, true);
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -168,11 +192,26 @@ function App() {
   };
 
   useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setUser(JSON.parse(savedUser));
+      setIsAuthenticated(true);
+      fetchChatrooms(savedToken);
+    }
+  }, []);
+
+  useEffect(() => {
     if (selectedRoom) {
-      const interval = setInterval(() => fetchMessages(selectedRoom), 3000);
+      const interval = setInterval(() => {
+        if (!editingMessage) {
+          fetchMessages(selectedRoom, true);
+        }
+      }, 3000);
       return () => clearInterval(interval);
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, editingMessage]);
 
   if (!isAuthenticated) {
     return (
@@ -185,6 +224,7 @@ function App() {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (isRegistering ? register() : login())}
             />
             {isRegistering && (
               <>
@@ -207,6 +247,7 @@ function App() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (isRegistering ? register() : login())}
             />
             {isRegistering && (
               <input
@@ -214,6 +255,7 @@ function App() {
                 placeholder="Confirm Password"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && register()}
               />
             )}
             {isRegistering ? (
@@ -238,7 +280,11 @@ function App() {
       <div className="chat-container">
         <div className="chat-header">
           <h1>Chat Room</h1>
-          <span className="username">{username}</span>
+          <div className="header-actions">
+            <span className="username">{user?.username}</span>
+            <button className="profile-btn" onClick={() => alert('Profile feature coming soon!')}>Profile</button>
+            <button className="logout-btn" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); setToken(''); setUser(null); setIsAuthenticated(false); setSelectedRoom(null); setMessages([]); }}>Logout</button>
+          </div>
         </div>
 
         <div className="chat-content">
@@ -311,7 +357,7 @@ function App() {
                         ) : (
                           <>
                             <div className="message-content">
-                              <span className="message-user">{msg.sender}:</span>
+                              <span className="message-user">{msg.user_nickname || msg.user?.username}:</span>
                               <span className="message-text">{msg.content}</span>
                               <span className="message-time">
                                 {new Date(msg.timestamp).toLocaleTimeString()}
