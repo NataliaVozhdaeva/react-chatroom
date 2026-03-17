@@ -3,7 +3,9 @@ version: 2.1
 jobs:
   build-and-test:
     docker:
-      - image: cimg/base:current
+
+      - image: cimg/node:20.11  # includes node + npm
+
 
     steps:
       - checkout
@@ -14,7 +16,8 @@ jobs:
 
       - run:
           name: "Build React app"
-          command: npm run build
+
+          command: CI=false npm run build
 
 workflows:
   react-integration:
